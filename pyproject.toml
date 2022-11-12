@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "japanese_bot"
+version = "0.1.0"
+description = ""
+authors = ["Egor Semin <egorsemin@protonmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+python-telegram-bot = {git = "git@github.com:python-telegram-bot/python-telegram-bot.git"}
+
+[tool.poetry.dev-dependencies]
+pandas = "^1.5.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
