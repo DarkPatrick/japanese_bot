@@ -13,7 +13,10 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
         conn.autocommit = True
         with conn.cursor() as cur:
             cfg.logger.info("проверка существования бд")
-            cur.execute(f"select 1 from pg_catalog.pg_database WHERE datname = '{cfg.postgre['database']}'")
+            cur.execute(f"""
+                        select 1
+                        from pg_catalog.pg_database
+                        where datname = '{cfg.postgre['database']}'""")
             is_exists = cur.fetchone()
             if not is_exists:
                 cfg.logger.info("бд ещё не существует, создаю...")
@@ -34,11 +37,16 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
         conn.autocommit = True
         cur = conn.cursor()
         cfg.logger.info("проверка существования таблицы")
-        cur.execute(f"select 1 from information_schema.tables where table_name='{cfg.postgre['datatable']}'")
+        cur.execute(f"""
+                    select 1
+                    from information_schema.tables
+                    where table_name='{cfg.postgre['datatable']}'""")
         is_exists = cur.fetchone()
         if not is_exists:
             cfg.logger.info("таблица ещё не существует, создаю...")
-            cur.execute(f"CREATE TABLE {cfg.postgre['datatable']} (word varchar, translate varchar);")
+            cur.execute(f"""
+                        create table {cfg.postgre['datatable']}
+                        (word varchar, translate varchar);""")
         return conn, cur
     except psycopg2.Error as e:
         cfg.logger.info(f"ошибка обращения к таблице: {e}")
@@ -47,10 +55,11 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
         return None
 
 
-
 def add_row(word_dict: dict) -> None:
     conn, cur = connect()
-    cur.execute(f"insert into {cfg.postgre['datatable']} values('{word_dict['word']}', '{word_dict['translation']}')")
+    cur.execute(f"""
+                insert into {cfg.postgre['datatable']}
+                values('{word_dict['word']}', '{word_dict['translation']}')""")
     conn.close()
 
 def get_datatable() -> pd.DataFrame:
