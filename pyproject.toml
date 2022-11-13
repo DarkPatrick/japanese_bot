@@ -10,6 +10,7 @@ python-telegram-bot = {git = "git@github.com:python-telegram-bot/python-telegram
 
 [tool.poetry.dev-dependencies]
 pandas = "^1.5.1"
+psycopg2 = "^2.9.5"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
