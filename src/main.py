@@ -20,6 +20,7 @@ from telegram.constants import ParseMode
 
 
 import config as cfg
+import dictionary
 
 
 # create bot_token file inside .venv with your secret token from @BotFather
@@ -51,6 +52,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def add_jap_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Stores the info about the user and ends the conversation."""
     cfg.logger.info(f"японское слово: {update.message.text}")
+    cfg.new_word["word"] = update.message.text
     await update.message.reply_text("Теперь введи перевод")
 
     # return ConversationHandler.END
@@ -58,6 +60,8 @@ async def add_jap_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
+    cfg.new_word["translation"] = update.message.text
+    dictionary.add_row(cfg.new_word)
     cfg.logger.info(f"первод: {update.message.text}")
     await update.message.reply_text("слово успешно добавлено")
 

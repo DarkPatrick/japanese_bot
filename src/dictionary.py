@@ -48,9 +48,9 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
 
 
 
-def add_row(word: str, translation: str) -> None:
+def add_row(word_dict: dict) -> None:
     conn, cur = connect()
-    cur.execute(f"insert into {cfg.postgre['datatable']} values('{word}', '{translation}')")
+    cur.execute(f"insert into {cfg.postgre['datatable']} values('{word_dict['word']}', '{word_dict['translation']}')")
     conn.close()
 
 def get_datatable() -> pd.DataFrame:
@@ -62,6 +62,6 @@ def get_datatable() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    add_row("test1", "test2")
+    # add_row(dict(word="test1", translation="test2"))
     df = get_datatable()
     print(df)
