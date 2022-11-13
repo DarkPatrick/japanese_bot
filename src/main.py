@@ -18,6 +18,8 @@ from telegram.ext import (
 
 from telegram.constants import ParseMode
 
+import prettytable as pt
+
 
 import config as cfg
 import dictionary
@@ -67,6 +69,18 @@ async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT
 
     return ConversationHandler.END
     # return 2
+
+async def print_dictionary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    table = pt.PrettyTable(['Слово', 'Перевод'])
+    table.align['Слово'] = 'l'
+    table.align['Перевод'] = 'r'
+    df = dictionary.get_datatable()
+    for index, row in df.iterrows():
+        # print(row['word'], row['translation'])
+        # print(row['word'], row['translation'])
+        table.add_row([row['word'], row['translation']])
+
+    await update.message.reply_text(f'```{table}```', parse_mode=ParseMode.MARKDOWN_V2)
 
 
 # async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -169,6 +183,7 @@ def main() -> None:
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(cfg.bot_info["token"]).build()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("dict", print_dictionary))
     # application.add_handler(CommandHandler("add", add))
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("add", add)],
