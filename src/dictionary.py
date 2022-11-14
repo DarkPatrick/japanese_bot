@@ -23,7 +23,7 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
                 cur.execute(f"CREATE DATABASE {cfg.postgre['database']}")
     except psycopg2.Error as e:
         cfg.logger.info(f"ошибка первичного подключения: {e}")
-        return None
+        return (None, None)
     finally:
         if conn:
             conn.close()
@@ -52,22 +52,26 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
         cfg.logger.info(f"ошибка обращения к таблице: {e}")
         if conn:
             conn.close()
-        return None
+        return (None, None)
 
 
 def add_row(word_dict: dict) -> None:
     conn, cur = connect()
+    if conn is None:
+        return None
     cur.execute(f"""
                 insert into {cfg.postgre['datatable']}
                 values('{word_dict['word']}', '{word_dict['translation']}')""")
     conn.close()
 
 def get_datatable() -> pd.DataFrame:
-     conn, cur = connect()
-     cur.execute(f"select * from {cfg.postgre['datatable']}")
-     df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation'])
-     conn.close()
-     return df
+    conn, cur = connect()
+    if conn is None:
+        return None
+    cur.execute(f"select * from {cfg.postgre['datatable']}")
+    df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation'])
+    conn.close()
+    return df
 
 
 if __name__ == "__main__":
