@@ -1,10 +1,11 @@
-# import os
 import asyncio
 from typing import NoReturn
-# import logging
 
 from telegram import __version__ as TG_VER
 from telegram import __version_info__
+
+print(TG_VER)
+print(__version_info__)
 
 from telegram import (
     KeyboardButton, KeyboardButtonPollType, Poll, ReplyKeyboardMarkup,
@@ -13,7 +14,8 @@ from telegram import (
 
 from telegram.ext import (
     CommandHandler, ContextTypes, MessageHandler, ConversationHandler,
-    PollAnswerHandler, PollHandler, filters, ApplicationBuilder, Application
+    PollAnswerHandler, PollHandler, filters, ApplicationBuilder, Application,
+    Updater
 )
 
 from telegram.constants import ParseMode
@@ -22,22 +24,15 @@ import prettytable as pt
 
 
 import config as cfg
-import dictionary
+import dictionary as dictionary
 
-
-# create bot_token file inside .venv with your secret token from @BotFather
-# with open(".venv/bot_token") as f:
-#     os.environ['BOT_TOKEN'] = f.readline()
-
-# print(TG_VER)
-
-# logging.basicConfig(
-#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-# )
-# logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inform user about what this bot can do"""
+    cfg.current_chat_id = update.message.chat_id
+    cfg.logger.info(f"id чата: {cfg.current_chat_id}")
+    # await set_timer(cfg.current_chat_id, context)
+    await set_timer(update, context)
     await update.message.reply_text(
         "Используй /add для добавления слова или фразы "
         "/dict для отображения текущего словаря "
@@ -57,8 +52,8 @@ async def add_jap_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     cfg.new_word["word"] = update.message.text
     await update.message.reply_text("Теперь введи перевод")
 
-    # return ConversationHandler.END
     return 1
+
 
 async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
@@ -68,7 +63,7 @@ async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text("слово успешно добавлено")
 
     return ConversationHandler.END
-    # return 2
+
 
 async def print_dictionary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     table = pt.PrettyTable(['Слово', 'Перевод'])
@@ -76,12 +71,43 @@ async def print_dictionary(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     table.align['Перевод'] = 'r'
     df = dictionary.get_datatable()
     for index, row in df.iterrows():
-        # print(row['word'], row['translation'])
-        # print(row['word'], row['translation'])
         table.add_row([row['word'], row['translation']])
 
     await update.message.reply_text(f'```{table}```', parse_mode=ParseMode.MARKDOWN_V2)
 
+
+async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send the alarm message."""
+    # update = context.update
+    job = context.job
+    
+    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
+    questions = ["1", "2", "4", "20"]
+    message = await context.bot.send_poll(
+        chat_id=job.chat_id, question="How many eggs do you need for a cake?", options=questions, type=Poll.QUIZ, correct_option_id=2
+    )
+    # Save some info about the poll the bot_data for later use in receive_quiz_answer
+    payload = {
+        # message.poll.id: {"chat_id": update.effective_chat.id, "message_id": message.message_id}
+        message.poll.id: {"chat_id": cfg.current_chat_id, "message_id": message.message_id}
+    }
+    context.bot_data.update(payload)
+
+
+# async def set_timer(chat_id: str, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Add a job to the queue."""
+    chat_id = update.effective_message.chat_id
+    try:
+        # args[0] should contain the time for the timer in seconds
+        due = 30
+
+        context.job_queue.run_repeating(alarm, interval=30, first=1, chat_id=chat_id, name=str(chat_id), data=due)
+        # context.job.run(alarm, due, chat_id=chat_id, name=str(chat_id), data=due)
+
+    except (IndexError, ValueError):
+        # pass
+        await update.effective_message.reply_text("ошибка таймера квиза")
 
 # async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 #     """Summarize a users poll vote"""
@@ -110,17 +136,17 @@ async def print_dictionary(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 #         await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
 
-# async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     """Send a predefined poll"""
-#     questions = ["1", "2", "4", "20"]
-#     message = await update.effective_message.reply_poll(
-#         "How many eggs do you need for a cake?", questions, type=Poll.QUIZ, correct_option_id=2
-#     )
-#     # Save some info about the poll the bot_data for later use in receive_quiz_answer
-#     payload = {
-#         message.poll.id: {"chat_id": update.effective_chat.id, "message_id": message.message_id}
-#     }
-#     context.bot_data.update(payload)
+async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a predefined poll"""
+    questions = ["1", "2", "4", "20"]
+    message = await update.effective_message.reply_poll(
+        "How many eggs do you need for a cake?", questions, type=Poll.QUIZ, correct_option_id=2
+    )
+    # Save some info about the poll the bot_data for later use in receive_quiz_answer
+    payload = {
+        message.poll.id: {"chat_id": update.effective_chat.id, "message_id": message.message_id}
+    }
+    context.bot_data.update(payload)
 
 
 # async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -180,10 +206,16 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 def main() -> None:
     """Run bot."""
+    # updater = Updater(cfg.bot_info["token"], pass_job_queue=True)
+    # dispatcher = updater.dispatcher
+    # dispatcher.add_handler(set_timer)
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(cfg.bot_info["token"]).build()
+    # application.bot.getUpdates()
+    # asyncio.run(set_timer(application.bot., application.context_types))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("dict", print_dictionary))
+    # application.add_handler(CommandHandler("set", set_timer))
     # application.add_handler(CommandHandler("add", add))
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("add", add)],

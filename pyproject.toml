@@ -6,7 +6,6 @@ authors = ["Egor Semin <egorsemin@protonmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-python-telegram-bot = {git = "git@github.com:python-telegram-bot/python-telegram-bot.git"}
 
 [tool.poetry.dev-dependencies]
 pandas = "^1.5.1"
