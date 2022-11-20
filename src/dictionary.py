@@ -46,7 +46,7 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
             cfg.logger.info("таблица ещё не существует, создаю...")
             cur.execute(f"""
                         create table {cfg.postgre['datatable']}
-                        (word varchar, translate varchar);""")
+                        (word varchar, translate varchar, tries int, success_cnt int);""")
         return conn, cur
     except psycopg2.Error as e:
         cfg.logger.info(f"ошибка обращения к таблице: {e}")
@@ -54,22 +54,63 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
             conn.close()
         return (None, None)
 
+# def foo(**kwargs):
+#     print(kwargs['col_name'], kwargs['word'])
+# foo(col_name='a', word='b')
 
-def add_row(word_dict: dict) -> None:
+def get_info_by(**kwargs: dict) -> pd.DataFrame:
     conn, cur = connect()
     if conn is None:
         return None
     cur.execute(f"""
-                insert into {cfg.postgre['datatable']}
-                values('{word_dict['word']}', '{word_dict['translation']}')""")
+                select * 
+                from {cfg.postgre['datatable']}
+                where {kwargs['col_name']} = '{kwargs['word']}'""")
+    df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation', 'tries', 'success_cnt'])
     conn.close()
+    return df
+
+
+def add_row(word_dict: dict) -> int:
+    conn, cur = connect()
+    if conn is None:
+        return None
+    check_word = get_info_by(col_name='word', word=word_dict['word'])
+    check_translation = get_info_by(col_name='translate', word=word_dict['translation'])
+    if len(check_word.index) == 0 and len(check_word.index) == 0:
+        cur.execute(f"""
+                    insert into {cfg.postgre['datatable']} 
+                    (word, translate, tries, success_cnt)
+                    values('{word_dict['word']}', '{word_dict['translation']}', 0, 0)""")
+    else:
+        # log here that word already exists
+        return 1
+    conn.close()
+    return 0
 
 def get_datatable() -> pd.DataFrame:
     conn, cur = connect()
     if conn is None:
         return None
     cur.execute(f"select * from {cfg.postgre['datatable']}")
-    df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation'])
+    df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation', 'tries', 'success_cnt'])
+    conn.close()
+    return df
+
+def get_random_word(word_cnt: int=8) -> pd.DataFrame:
+    conn, cur = connect()
+    if conn is None:
+        return None
+    cur.execute(f"""
+                select count(*) as exact_count
+                from {cfg.postgre['datatable']}""")
+    row_num = cur.fetchall()[0][0]
+    # cur.execute(f"select * from {cfg.postgre['datatable']} where random() < 2 / {row_num}")
+    cur.execute(f"""
+                select * from {cfg.postgre['datatable']}
+                order by random() 
+                limit {row_num if row_num <= word_cnt else word_cnt}""")
+    df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation', 'tries', 'success_cnt'])
     conn.close()
     return df
 

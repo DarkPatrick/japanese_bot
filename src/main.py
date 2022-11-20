@@ -22,6 +22,8 @@ from telegram.constants import ParseMode
 
 import prettytable as pt
 
+from random import random, randint, shuffle
+
 
 import config as cfg
 import dictionary as dictionary
@@ -32,6 +34,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg.current_chat_id = update.message.chat_id
     cfg.logger.info(f"id чата: {cfg.current_chat_id}")
     # await set_timer(cfg.current_chat_id, context)
+    # here
     await set_timer(update, context)
     await update.message.reply_text(
         "Используй /add для добавления слова или фразы "
@@ -66,12 +69,14 @@ async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT
 
 
 async def print_dictionary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    table = pt.PrettyTable(['Слово', 'Перевод'])
+    table = pt.PrettyTable(['Слово', 'Перевод', 'Тестов', 'Верных ответов'])
     table.align['Слово'] = 'l'
     table.align['Перевод'] = 'r'
+    table.align['Тестов'] = 'r'
+    table.align['Верных ответов'] = 'r'
     df = dictionary.get_datatable()
     for index, row in df.iterrows():
-        table.add_row([row['word'], row['translation']])
+        table.add_row([row['word'], row['translation'], row['tries'], row['success_cnt']])
 
     await update.message.reply_text(f'```{table}```', parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -80,11 +85,26 @@ async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send the alarm message."""
     # update = context.update
     job = context.job
-    
-    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
-    questions = ["1", "2", "4", "20"]
+    # await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
+    questions_df = dictionary.get_random_word()
+    # questions = ["1", "2", "4", "20"]
+    # idx = randint(0, len(questions_df.index))
+    if random() < 0.5:
+        word = questions_df.word[0]
+        options = list(questions_df.translation)
+        questions_df = questions_df.sample(frac=1)
+        answer_id = questions_df[questions_df.word==word].index[0]
+    else:
+        word = questions_df.translation[0]
+        options = list(questions_df.word)
+        questions_df = questions_df.sample(frac=1)
+        answer_id = questions_df[questions_df.translation==word].index[0]
     message = await context.bot.send_poll(
-        chat_id=job.chat_id, question="How many eggs do you need for a cake?", options=questions, type=Poll.QUIZ, correct_option_id=2
+        chat_id=job.chat_id,
+        question=f"Выбери верный перевод слова {word}",
+        options=options,
+        # allows_multiple_answers=True,
+        type=Poll.QUIZ, correct_option_id=int(answer_id)
     )
     # Save some info about the poll the bot_data for later use in receive_quiz_answer
     payload = {
@@ -100,9 +120,9 @@ async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_message.chat_id
     try:
         # args[0] should contain the time for the timer in seconds
-        due = 30
+        due = 60
 
-        context.job_queue.run_repeating(alarm, interval=30, first=1, chat_id=chat_id, name=str(chat_id), data=due)
+        context.job_queue.run_repeating(alarm, interval=due, first=1, chat_id=chat_id, name=str(chat_id), data=due)
         # context.job.run(alarm, due, chat_id=chat_id, name=str(chat_id), data=due)
 
     except (IndexError, ValueError):
@@ -149,18 +169,18 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.bot_data.update(payload)
 
 
-# async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     """Close quiz after three participants took it"""
-#     # the bot can receive closed poll updates we don't care about
-#     if update.poll.is_closed:
-#         return
-#     if update.poll.total_voter_count == 3:
-#         try:
-#             quiz_data = context.bot_data[update.poll.id]
-#         # this means this poll answer update is from an old poll, we can't stop it then
-#         except KeyError:
-#             return
-#         await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
+async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Close quiz after three participants took it"""
+    # the bot can receive closed poll updates we don't care about
+    if update.poll.is_closed:
+        return
+    if update.poll.total_voter_count == 3:
+        try:
+            quiz_data = context.bot_data[update.poll.id]
+        # this means this poll answer update is from an old poll, we can't stop it then
+        except KeyError:
+            return
+        await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
 
 
 # async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -230,7 +250,7 @@ def main() -> None:
     # application.add_handler(CommandHandler("help", help_handler))
     # application.add_handler(MessageHandler(filters.POLL, receive_poll))
     # application.add_handler(PollAnswerHandler(receive_poll_answer))
-    # application.add_handler(PollHandler(receive_quiz_answer))
+    application.add_handler(PollHandler(receive_quiz_answer))
 
     application.add_handler(conv_handler)
 
