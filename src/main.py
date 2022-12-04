@@ -38,6 +38,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await set_timer(update, context)
     await update.message.reply_text(
         "Используй /add для добавления слова или фразы "
+        "/del для удаления слова из словаря "
         "/dict для отображения текущего словаря "
         "/edit для редактирования записи"
     )
@@ -64,6 +65,21 @@ async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT
     dictionary.add_row(cfg.new_word)
     cfg.logger.info(f"первод: {update.message.text}")
     await update.message.reply_text("слово успешно добавлено")
+
+    return ConversationHandler.END
+
+
+async def del_jap_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    message = "Введи слово, которое хочешь удалить или его перевод"
+    await update.effective_message.reply_text(
+        message
+    )
+    return 0
+
+async def del_word_from_dict(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    word_to_del = update.message.text
+    res = dictionary.del_row(word_to_del)
+    await update.message.reply_text("слово успешно удалено" if res == 1 else "такого слова в словаре не найдено")
 
     return ConversationHandler.END
 
@@ -172,10 +188,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Close quiz after three participants took it"""
-    # the bot can receive closed poll updates we don't care about
-    # cfg.logger.info(f"poll info: {context.bot_data}")
     if not update.poll.is_closed:
-        # cfg.logger.info(f"poll info: {update.poll.is_closed}, {update.poll.options[0].voter_count}, {update.poll.options[0].text}, {update.poll.correct_option_id}")
         if update.poll.options[update.poll.correct_option_id].voter_count == 1:
             dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 1)
         else:
@@ -183,15 +196,6 @@ async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE
         if update.poll.id in context.bot_data.keys():
             quiz_data = context.bot_data[update.poll.id]
             await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
-    # if update.poll.is_closed:
-    #     return
-    # if update.poll.total_voter_count == 3:
-    #     try:
-    #         quiz_data = context.bot_data[update.poll.id]
-    #     # this means this poll answer update is from an old poll, we can't stop it then
-    #     except KeyError:
-    #         return
-    #     await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
 
 
 # async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -248,11 +252,18 @@ def main() -> None:
     application.add_handler(CommandHandler("dict", print_dictionary))
     # application.add_handler(CommandHandler("set", set_timer))
     # application.add_handler(CommandHandler("add", add))
-    conv_handler = ConversationHandler(
+    word_add_handler = ConversationHandler(
         entry_points=[CommandHandler("add", add)],
         states={
             0: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_jap_word)],
             1: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_jap_word_translation)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+    word_del_handler = ConversationHandler(
+        entry_points=[CommandHandler("del", del_jap_word)],
+        states={
+            0: [MessageHandler(filters.TEXT & ~filters.COMMAND, del_word_from_dict)]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
@@ -263,7 +274,8 @@ def main() -> None:
     application.add_handler(PollHandler(receive_quiz_answer))
     # application.add_handler(PollAnswerHandler(receive_poll_answer))
 
-    application.add_handler(conv_handler)
+    application.add_handler(word_add_handler)
+    application.add_handler(word_del_handler)
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

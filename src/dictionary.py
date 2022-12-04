@@ -81,9 +81,33 @@ def add_row(word_dict: dict) -> int:
                     values('{word_dict['word']}', '{word_dict['translation']}', 0, 0)""")
     else:
         # log here that word already exists
+        conn.close()
         return 1
     conn.close()
     return 0
+
+
+def del_row(word: str) -> int:
+    conn, cur = connect()
+    if conn is None:
+        return None
+
+    cur.execute(f"""
+                select count(*)
+                from {cfg.postgre['datatable']}
+                where word = '{word}' or translate = '{word}'""")
+    df = pd.DataFrame(cur.fetchall(), columns=['word_cnt'])
+    if df.word_cnt[0] == 0:
+        conn.close()
+        return 0
+    
+    cur.execute(f"""
+                delete from {cfg.postgre['datatable']}
+                where word = '{word}' or translate = '{word}'""")
+
+    conn.close()
+    return 1
+
 
 def get_datatable() -> pd.DataFrame:
     conn, cur = connect()
@@ -93,6 +117,7 @@ def get_datatable() -> pd.DataFrame:
     df = pd.DataFrame(cur.fetchall(), columns=['word', 'translation', 'tries', 'success_cnt'])
     conn.close()
     return df
+
 
 def get_random_word(word_cnt: int=8) -> pd.DataFrame:
     conn, cur = connect()
