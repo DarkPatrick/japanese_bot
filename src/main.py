@@ -91,13 +91,13 @@ async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     # idx = randint(0, len(questions_df.index))
     if random() < 0.5:
         word = questions_df.word[0]
+        questions_df = questions_df.sample(frac=1).reset_index(drop=True)
         options = list(questions_df.translation)
-        questions_df = questions_df.sample(frac=1)
         answer_id = questions_df[questions_df.word==word].index[0]
     else:
         word = questions_df.translation[0]
+        questions_df = questions_df.sample(frac=1).reset_index(drop=True)
         options = list(questions_df.word)
-        questions_df = questions_df.sample(frac=1)
         answer_id = questions_df[questions_df.translation==word].index[0]
     message = await context.bot.send_poll(
         chat_id=job.chat_id,
@@ -129,31 +129,32 @@ async def set_timer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # pass
         await update.effective_message.reply_text("ошибка таймера квиза")
 
-# async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     """Summarize a users poll vote"""
-#     answer = update.poll_answer
-#     answered_poll = context.bot_data[answer.poll_id]
-#     try:
-#         questions = answered_poll["questions"]
-#     # this means this poll answer update is from an old poll, we can't do our answering then
-#     except KeyError:
-#         return
-#     selected_options = answer.option_ids
-#     answer_string = ""
-#     for question_id in selected_options:
-#         if question_id != selected_options[-1]:
-#             answer_string += questions[question_id] + " and "
-#         else:
-#             answer_string += questions[question_id]
-#     await context.bot.send_message(
-#         answered_poll["chat_id"],
-#         f"{update.effective_user.mention_html()} feels {answer_string}!",
-#         parse_mode=ParseMode.HTML,
-#     )
-#     answered_poll["answers"] += 1
-#     # Close poll after three participants voted
-#     if answered_poll["answers"] == 3:
-#         await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
+async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Summarize a users poll vote"""
+    answer = update.poll_answer
+    answered_poll = context.bot_data[answer.poll_id]
+    cfg.logger.info(f"poll info: {context.bot_data}")
+    try:
+        questions = answered_poll["questions"]
+    # this means this poll answer update is from an old poll, we can't do our answering then
+    except KeyError:
+        return
+    selected_options = answer.option_ids
+    answer_string = ""
+    for question_id in selected_options:
+        if question_id != selected_options[-1]:
+            answer_string += questions[question_id] + " and "
+        else:
+            answer_string += questions[question_id]
+    await context.bot.send_message(
+        answered_poll["chat_id"],
+        f"{update.effective_user.mention_html()} feels {answer_string}!",
+        parse_mode=ParseMode.HTML,
+    )
+    answered_poll["answers"] += 1
+    # Close poll after three participants voted
+    if answered_poll["answers"] == 3:
+        await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
 
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -172,15 +173,25 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Close quiz after three participants took it"""
     # the bot can receive closed poll updates we don't care about
-    if update.poll.is_closed:
-        return
-    if update.poll.total_voter_count == 3:
-        try:
+    # cfg.logger.info(f"poll info: {context.bot_data}")
+    if not update.poll.is_closed:
+        # cfg.logger.info(f"poll info: {update.poll.is_closed}, {update.poll.options[0].voter_count}, {update.poll.options[0].text}, {update.poll.correct_option_id}")
+        if update.poll.options[update.poll.correct_option_id].voter_count == 1:
+            dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 1)
+        else:
+            dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 0)
+        if update.poll.id in context.bot_data.keys():
             quiz_data = context.bot_data[update.poll.id]
-        # this means this poll answer update is from an old poll, we can't stop it then
-        except KeyError:
-            return
-        await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
+            await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
+    # if update.poll.is_closed:
+    #     return
+    # if update.poll.total_voter_count == 3:
+    #     try:
+    #         quiz_data = context.bot_data[update.poll.id]
+    #     # this means this poll answer update is from an old poll, we can't stop it then
+    #     except KeyError:
+    #         return
+    #     await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
 
 
 # async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -249,8 +260,8 @@ def main() -> None:
     # application.add_handler(CommandHandler("preview", preview))
     # application.add_handler(CommandHandler("help", help_handler))
     # application.add_handler(MessageHandler(filters.POLL, receive_poll))
-    # application.add_handler(PollAnswerHandler(receive_poll_answer))
     application.add_handler(PollHandler(receive_quiz_answer))
+    # application.add_handler(PollAnswerHandler(receive_poll_answer))
 
     application.add_handler(conv_handler)
 

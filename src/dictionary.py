@@ -54,9 +54,6 @@ def connect() -> tuple[psycopg2.extensions.connection, psycopg2.extensions.curso
             conn.close()
         return (None, None)
 
-# def foo(**kwargs):
-#     print(kwargs['col_name'], kwargs['word'])
-# foo(col_name='a', word='b')
 
 def get_info_by(**kwargs: dict) -> pd.DataFrame:
     conn, cur = connect()
@@ -105,7 +102,6 @@ def get_random_word(word_cnt: int=8) -> pd.DataFrame:
                 select count(*) as exact_count
                 from {cfg.postgre['datatable']}""")
     row_num = cur.fetchall()[0][0]
-    # cur.execute(f"select * from {cfg.postgre['datatable']} where random() < 2 / {row_num}")
     cur.execute(f"""
                 select * from {cfg.postgre['datatable']}
                 order by random() 
@@ -115,7 +111,18 @@ def get_random_word(word_cnt: int=8) -> pd.DataFrame:
     return df
 
 
+def update_stats(word :str, succ: int) -> None:
+    conn, cur = connect()
+    if conn is None:
+        return None
+
+    cur.execute(f"""
+                update {cfg.postgre['datatable']}
+                set tries = tries + 1, success_cnt = success_cnt + {succ}
+                where word = '{word}' or translate = '{word}'""")
+    conn.close()
+
+
 if __name__ == "__main__":
-    # add_row(dict(word="test1", translation="test2"))
     df = get_datatable()
     print(df)
