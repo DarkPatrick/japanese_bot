@@ -2,8 +2,6 @@ import os
 import logging
 
 
-# current_chat_id = ""
-
 postgre = {
     "host": "localhost",
     "port": "5432",

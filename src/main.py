@@ -8,22 +8,19 @@ print(TG_VER)
 print(__version_info__)
 
 from telegram import (
-    KeyboardButton, KeyboardButtonPollType, Poll, ReplyKeyboardMarkup,
-    ReplyKeyboardRemove, Update
+    Poll, ReplyKeyboardRemove, Update
 )
 
 from telegram.ext import (
     CommandHandler, ContextTypes, MessageHandler, ConversationHandler,
-    PollAnswerHandler, PollHandler, filters, ApplicationBuilder, Application,
-    Updater
+    PollHandler, filters, Application,
 )
 
 from telegram.constants import ParseMode
 
 import prettytable as pt
 
-from random import random, randint, shuffle
-
+from random import random
 
 import config as cfg
 import dictionary as dictionary
@@ -31,10 +28,6 @@ import dictionary as dictionary
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inform user about what this bot can do"""
-    # cfg.current_chat_id = update.message.chat_id
-    # cfg.logger.info(f"id чата: {cfg.current_chat_id}")
-    # await set_timer(cfg.current_chat_id, context)
-    # here
     await set_timer(update, context)
     await update.message.reply_text(
         "Используй /add для добавления слова или фразы "
@@ -62,9 +55,9 @@ async def add_jap_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def add_jap_word_translation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     cfg.new_word["translation"] = update.message.text
-    dictionary.add_row(cfg.new_word, update.message.chat_id)
+    res = dictionary.add_row(cfg.new_word, update.message.chat_id)
     cfg.logger.info(f"первод: {update.message.text}")
-    await update.message.reply_text("слово успешно добавлено")
+    await update.message.reply_text("слово успешно добавлено" if res == 1 else "слово уже существует")
 
     return ConversationHandler.END
 
@@ -188,11 +181,14 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Close quiz after three participants took it"""
-    if not update.poll.is_closed:
+    if not update.poll.is_closed and update.poll.id in context.bot_data:
+        # context.bot_data[update.poll.id].chat_id
         if update.poll.options[update.poll.correct_option_id].voter_count == 1:
-            dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 1, update.message.chat_id)
+            # dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 1, update.message.chat_id)
+            dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 1, context.bot_data[update.poll.id]["chat_id"])
         else:
-            dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 0, update.message.chat_id)
+            # dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 0, update.message.chat_id)
+            dictionary.update_stats(update.poll.options[update.poll.correct_option_id].text, 0, context.bot_data[update.poll.id]["chat_id"])
         if update.poll.id in context.bot_data.keys():
             quiz_data = context.bot_data[update.poll.id]
             await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
