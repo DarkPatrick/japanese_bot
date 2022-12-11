@@ -21,16 +21,20 @@ cfg.logger.info(__version_info__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inform user about what this bot can do"""
-    await set_timer(update, context)
+    # await set_quiz_timer(update, context)
     await update.message.reply_text(
         "Используй /add для добавления слова или фразы "
         "/del для удаления слова из словаря "
         "/dict для отображения текущего словаря "
-        "/edit для редактирования записи"
+        "/edit для редактирования записи "
+        "/quiz чтобы запустить режим регулярных квизов"
     )
 
 
 async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    init adding a new word to the dictionary
+    """
     message = "Введи слово / фразу"
     await update.effective_message.reply_text(
         message
@@ -40,7 +44,9 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def add_jap_word(update: Update, 
                        context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Stores the info about the user and ends the conversation."""
+    """
+    adding word
+    """
     cfg.logger.info(f"японское слово: {update.message.text}")
     cfg.new_word["word"] = update.message.text
     await update.message.reply_text("Теперь введи перевод")
@@ -49,6 +55,9 @@ async def add_jap_word(update: Update,
 
 async def add_jap_word_translation(update: Update, 
                                    context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    adding word's translation
+    """
     user = update.message.from_user
     cfg.new_word["translation"] = update.message.text
     res = dictionary.add_row(cfg.new_word, update.message.chat_id)
@@ -60,6 +69,9 @@ async def add_jap_word_translation(update: Update,
 
 async def del_jap_word(update: Update, 
                        context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    init deleting word from dictionary
+    """
     message = "Введи слово, которое хочешь удалить или его перевод"
     await update.effective_message.reply_text(
         message
@@ -69,6 +81,9 @@ async def del_jap_word(update: Update,
 
 async def del_word_from_dict(update: Update, 
                              context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    deleting word from dictionary
+    """
     word_to_del = update.message.text
     res = dictionary.del_row(word_to_del, update.message.chat_id)
     await update.message.reply_text("слово успешно удалено" if res == 1 
@@ -78,6 +93,9 @@ async def del_word_from_dict(update: Update,
 
 async def print_dictionary(update: Update, 
                            context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    print full dictionary context
+    """
     table = pt.PrettyTable(['Слово', 'Перевод', 'Тестов', 'Верных ответов'])
     table.align['Слово'] = 'l'
     table.align['Перевод'] = 'r'
@@ -91,8 +109,8 @@ async def print_dictionary(update: Update,
                                     parse_mode=ParseMode.MARKDOWN_V2)
 
 
-async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send the alarm message."""
+async def create_quiz(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """create new quiz for user"""
     job = context.job
     questions_df = dictionary.get_random_word(chat_id=job.chat_id)
     if random() < 0.5:
@@ -118,13 +136,14 @@ async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     context.bot_data.update(payload)
 
 
-async def set_timer(update: Update, 
+async def set_quiz_timer(update: Update, 
                     context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Add a job to the queue."""
+    """create repeating job for the quiz"""
     chat_id = update.effective_message.chat_id
     try:
-        due = 60
-        context.job_queue.run_repeating(alarm, interval=due, first=1, 
+        # hardcoded constatnt 30 minutes for quiz to repeat
+        due = 1800
+        context.job_queue.run_repeating(create_quiz, interval=due, first=1, 
                                         chat_id=chat_id, name=str(chat_id), 
                                         data=due)
     except (IndexError, ValueError):
@@ -133,7 +152,7 @@ async def set_timer(update: Update,
 
 async def receive_quiz_answer(update: Update, 
                               context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Close quiz after three participants took it"""
+    """Close quiz and update state of trials / successes"""
     if not update.poll.is_closed and update.poll.id in context.bot_data:
         if update.poll.options[update.poll.correct_option_id].voter_count == 1:
             dictionary.update_stats(
@@ -166,6 +185,7 @@ def main() -> None:
     application = Application.builder().token(cfg.bot_info["token"]).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("dict", print_dictionary))
+    application.add_handler(CommandHandler("quiz", set_quiz_timer))
     word_add_handler = ConversationHandler(
         entry_points=[CommandHandler("add", add_new_word)],
         states={
