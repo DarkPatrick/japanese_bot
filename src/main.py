@@ -10,6 +10,8 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 import prettytable as pt
 from random import random
+import pandas as pd
+from tabulate import tabulate
 
 import config as cfg
 import dictionary as dictionary
@@ -62,7 +64,7 @@ async def add_jap_word_translation(update: Update,
     cfg.new_word["translation"] = update.message.text
     res = dictionary.add_row(cfg.new_word, update.message.chat_id)
     cfg.logger.info(f"первод: {update.message.text}")
-    await update.message.reply_text("слово успешно добавлено" if res == 1 
+    await update.message.reply_text("слово успешно добавлено" if res == 0 
                                     else "слово уже существует")
     return ConversationHandler.END
 
@@ -96,7 +98,9 @@ async def print_dictionary(update: Update,
     """
     print full dictionary context
     """
-    table = pt.PrettyTable(['Слово', 'Перевод', 'Тестов', 'Верных ответов'])
+    pd.set_option('display.unicode.ambiguous_as_wide', True)
+    pd.set_option('display.unicode.east_asian_width', True)
+    table = pt.PrettyTable(['Слово', 'Перевод', 'Тестов', 'Верных ответов'], sep='')
     table.align['Слово'] = 'l'
     table.align['Перевод'] = 'r'
     table.align['Тестов'] = 'r'
@@ -105,6 +109,7 @@ async def print_dictionary(update: Update,
     for index, row in df.iterrows():
         table.add_row([row['word'], row['translation'], 
                        row['tries'], row['success_cnt']])
+    # tbl = tabulate(df, headers='keys', tablefmt='psql')
     await update.message.reply_text(f'```{table}```', 
                                     parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -214,3 +219,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

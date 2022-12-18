@@ -127,10 +127,10 @@ def add_row(word_dict: dict, chat_id: str) -> int:
                     values('{word_dict['word']}', 
                     '{word_dict['translation']}', 0, 0)""")
     else:
-        cfg.logger.info(f"error: word is already exists")
+        cfg.logger.info(f"successfully added")
         conn.close()
         return 1
-    cfg.logger.info(f"successfully added")
+    cfg.logger.info(f"error: word is already exists")
     conn.close()
     return 0
 
